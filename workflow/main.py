@@ -7,14 +7,39 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage,SystemMessage,BaseMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langgraph.graph.message import add_messages
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 
 load_dotenv()
 
-jd_parser_llm=ChatOllama("gemma4:31b-cloud")
-resume_tailor_model=ChatOllama("gemma4:31b-cloud")
-optimiser_llm=ChatOllama("gemma4:31b-cloud")
-optimiser_llm=ChatOllama("gemma4:31b-cloud")
+
+async def load_tools():
+    servers = {
+        "python_tools": {
+            "transport": "stdio",
+            "command": "uv",
+            "args": [
+                "run",
+                "fastmcp",
+                "run",
+                "C:\\Users\\panka\\genai_project\\tailor_resume\\MCP\\main.py",
+            ],
+        }
+    }
+
+    client = MultiServerMCPClient(servers)
+    tools = await client.get_tools()
+    return tools
+
+
+tools = asyncio.run(load_tools())
+latex_reader_tool=[i for i in tools if i.name=="latex_reader_tool"][0]
+latex_writer_tool=[i for i in tools if i.name=="latex_compiler_and_document_saver"][0]
+
+jd_parser_llm=ChatOllama(model="gemma4:31b-cloud")
+resume_tailor_model=ChatOllama(model="gemma4:31b-cloud").bind_tools([latex_writer_tool])
+optimiser_llm=ChatOllama(model="gemma4:31b-cloud")
+optimiser_llm=ChatOllama(model="gemma4:31b-cloud")
 
 class schema(TypedDict):
     resume_latex:str
@@ -77,7 +102,7 @@ async def jd_parser_node(state:schema):
 
 
 async def resume_reader_node(state:schema):
-    x=await resume_reader_tool.ainvoke(resume_path=state['resume_latex']).content
+    x=await latex_reader_tool.ainvoke(path=state['resume_latex']).content
     return {"resume_latex":x}
 
 
