@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Resume Tailor",
+  "version": "1.0",
+  "description": "Tailor your resume based on job descriptions.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Resume Tailor"
+  },
+  "permissions": [
+    "storage"
+  ]
+}

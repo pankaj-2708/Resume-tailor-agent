@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Resume Tailor</h1>
+
+    <div class="field-group">
+      <label for="jd">Job Description</label>
+      <textarea id="jd" placeholder="Paste the job description here..."></textarea>
+    </div>
+
+    <div class="field-group">
+      <label for="resume">Resume LaTeX</label>
+      <textarea id="resume" placeholder="Enter your resume's .tex file path here">C:\\Downloads\\resume.tex
+      </textarea>
+    </div>
+
+    <button id="tailorBtn">Tailor Resume</button>
+
+    <div id="status" class="status-message hidden"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

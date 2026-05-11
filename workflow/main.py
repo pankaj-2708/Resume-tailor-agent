@@ -169,7 +169,6 @@ async def tailor_resume_node(state: schema):
     You will receive two inputs:
     1. Required changes : in bullet points.
     2. LATEX RESUME — the candidate's current resume in raw LaTeX format.
-    3. update resume path — path where updates resume should be saved.
     
     Your task is to update as per required changes and use tools to run and save the updated latex at the given path.
     
@@ -180,7 +179,7 @@ async def tailor_resume_node(state: schema):
 
     inp = []
     if len(state["messages"]) == 0:
-        human_prompt = f"Resume - {state['resume_latex']} \n\n jd - {state['jd']}"
+        human_prompt = f"Resume - {state['resume_latex']} \n\n Job Description - {state['jd']}"
         inp = [SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)]
     else:
         inp = state["messages"]
