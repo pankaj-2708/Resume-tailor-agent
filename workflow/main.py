@@ -224,8 +224,15 @@ workflow = graph.compile()
 
 
 async def run_workflow(input_dct):
-    out = await workflow.ainvoke(input_dct)
-    return out
+    # out = await workflow.ainvoke(input_dct)
+    try:
+        completed_node=''
+        async for chunk in workflow.astream(input_dct,stream_mode="updates"):
+            completed_node=list(chunk.keys())[0]
+            # print(completed_node," is completed")
+        return {"status":"sucess"}
+    except Exception as E:
+        return {"status":"failed","error":str(E),"last_completed_node":completed_node}
 
 
 jd="""Job Title: Artificial Intelligence Intern

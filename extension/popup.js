@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
 
   // Replace this with your actual backend URL later
-  const BACKEND_URL = 'http://localhost:8000/tailor';
+  const BACKEND_URL = 'http://localhost:8000/tailor_resume';
 
   tailorBtn.addEventListener('click', async () => {
     const jd = jdInput.value.trim();
@@ -29,16 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         body: JSON.stringify({
           job_description: jd,
-          resume_content: resume
+          resume_path: resume
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        showStatus(data.message || 'Resume tailored successfully!', 'success');
+        showStatus(data.res || data.message || 'Resume tailored successfully!', 'success');
       } else {
-        showStatus(data.error || `Error occurred: ${response.statusText}`, 'error');
+        let errorMessage = data.error || `Error occurred: ${response.statusText}`;
+        if (data.last_completed_node) {
+          errorMessage += `\nFailed at node: ${data.last_completed_node}`;
+        }
+        showStatus(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Fetch error:', error);
