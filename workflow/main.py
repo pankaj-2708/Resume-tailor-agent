@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings(action='ignore')
+
 from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
 from langchain_ollama import ChatOllama
@@ -43,7 +46,8 @@ resume_tailor_model = ChatOllama(model="gemma4:31b-cloud").bind_tools(
     [latex_writer_tool]
 )
 optimiser_llm = ChatOllama(model="gemma4:31b-cloud")
-optimiser_llm = ChatOllama(model="gemma4:31b-cloud")
+scorer_llm = ChatOllama(model="gemma4:31b-cloud")
+
 
 
 class schema(TypedDict):
@@ -56,6 +60,8 @@ class schema(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     resume_updated: bool
     max_tool_calls_for_rewritting_resume: int
+    org_resume_score:int
+    resume_score:int
 
 
 class jd_summary_schema(BaseModel):
@@ -121,6 +127,43 @@ async def resume_reader_node(state: schema):
         raise ResumeReadingException(x['error'])
     return {"resume_latex": x['latex']}
 
+class schema_for_scorer_node(BaseModel):
+    score:int
+    
+parser_for_scorer_node=PydanticOutputParser(pydantic_object=schema_for_scorer_node)
+
+async def scorer_node(state:schema):
+    sys_prompt=f"""You are a Resume Scoring engine. Your sole job is to score how well a resume matches a given Job Description (JD).
+
+You will receive:
+- A resume in raw LaTeX (.tex) format
+- A Job Description (JD) in plain text
+
+LaTeX Parsing Instructions:
+- Extract and evaluate only the actual content — ignore all LaTeX commands, macros, and formatting syntax (e.g., \\textbf, \\begin, \\itemize, etc.)
+- Treat \\item entries as bullet points
+- Sections are typically defined by \\section or \\subsection — use these to identify Experience, Skills, Education, Projects, etc.
+
+Score the resume on a scale of 1–100, representing the likelihood of it being SHORTLISTED by a real recruiter or ATS system.
+
+Scoring Weights:
+- Skills & tools match: 35%
+- Work experience relevance & seniority fit: 30%
+- Quantified achievements & impact: 20%
+- Education & certifications: 15%
+
+Be strict. A score above 90 means strong fit.
+
+Output Format - 
+{parser_for_scorer_node.get_format_instructions()}
+"""
+    human_prompt=f"Job description - {state['parsed_jd']} \n Resume - {state['resume_latex']}"
+    
+    res=await scorer_llm.ainvoke([sys_prompt,human_prompt])
+    res=await parser_for_scorer_node.ainvoke(res.content)
+    
+    return {'resume_score':res.score}
+    
 
 class schema_for_optimiser_node(BaseModel):
     is_change_required: bool = Field(
@@ -189,130 +232,126 @@ async def tailor_resume_node(state: schema):
         "messages": [res],
         "max_tool_calls_for_rewritting_resume": state[
             "max_tool_calls_for_rewritting_resume"
-        ]
-        - 1,
+        ] - 1,
+        'resume_updated':True
     }
 
+def update_params_node(state:schema):
+    return {'org_resume_path':'C:\\Downloads\\resume.tex','org_resume_score':state['resume_score']}
 
 def tailor_condn(state: schema):
     return state["is_change_required"]
 
 def tool_call_condition(state:schema):
-    if state['messages'][-1].tool_calls:
+    if state['messages'][-1].tool_calls and state['resume_updated']:
         return "tools"
-    return END
+    elif not state['resume_updated']:
+        return "end"
+    
+    return 'next'
+
+def score_update_resume_cond(state:schema):
+    return state['resume_updated']
 
 graph = StateGraph(schema)
 
 graph.add_node("jd_parser_node",jd_parser_node)
 graph.add_node("resume_reader_node",resume_reader_node)
+graph.add_node("resume_reader_node2",resume_reader_node)
 graph.add_node("optimiser_node",optimiser_node)
 graph.add_node("tailor_resume_node",tailor_resume_node)
+graph.add_node("scorer_node",scorer_node)
+graph.add_node("scorer_node2",scorer_node)
+graph.add_node("update_params_node",update_params_node)
 graph.add_node("tools",ToolNode([latex_writer_tool]))
 
 graph.add_edge(START, "jd_parser_node")
 graph.add_edge(START, "resume_reader_node")
-graph.add_edge("resume_reader_node", "optimiser_node")
+graph.add_edge("resume_reader_node", "scorer_node")
+graph.add_edge("scorer_node", "optimiser_node")
 graph.add_edge("jd_parser_node", "optimiser_node")
 graph.add_conditional_edges(
     "optimiser_node", tailor_condn, {True: "tailor_resume_node", False: END}
 )
-graph.add_conditional_edges("tailor_resume_node",tool_call_condition)   
+graph.add_conditional_edges("tailor_resume_node",tool_call_condition,{"tools":"tools","end":END,'next':'update_params_node'})   
 graph.add_edge("tools",'tailor_resume_node')
+graph.add_edge('update_params_node','resume_reader_node2')
+graph.add_edge('resume_reader_node2','scorer_node2')
+graph.add_edge('scorer_node2',END)
+
 
 workflow = graph.compile()
+png_bytes = workflow.get_graph().draw_mermaid_png()
 
+# Save the bytes to a local file
+with open("langgraph_workflow.png", "wb") as f:
+    f.write(png_bytes)
 
 async def run_workflow(input_dct):
     # out = await workflow.ainvoke(input_dct)
     try:
         completed_node=''
-        async for chunk in workflow.astream(input_dct,stream_mode="updates"):
-            completed_node=list(chunk.keys())[0]
-            # print(completed_node," is completed")
-        return {"status":"sucess"}
+        last_state=None
+        async for chunk in workflow.astream(input_dct,stream_mode=["updates",'values']):
+            mode, data = chunk
+            if mode == "updates":
+                completed_node = list(data.keys())[0]
+            elif mode == "values":
+                last_state = data 
+        
+        if completed_node=='optimiser_node':
+            return {"status":"sucess",'message':'No update required'}
+
+        if last_state['resume_updated']==False:
+            return {"status":"failed","message":"Update failed after fix latex code max iternation time"}
+        
+        return {"status":"sucess","message":"updated resume is present at given directory with name resume.pdf","org_resume_score":last_state['org_resume_score'],'updated_resume_score':last_state['resume_score']}
+        
     except Exception as E:
         return {"status":"failed","error":str(E),"last_completed_node":completed_node}
 
 
-jd="""Job Title: Artificial Intelligence Intern
-Company: Infrabyte Consulting
-Location: Remote
-Employment Type: Full-time Internship
-Internship Duration: 1–3 Months
-Stipend: ₹15,400 per month
+jd="""Role: Applied AI Research Engineer — Multimodal & Vision-Language Models
+Company: AI Research Lab / Enterprise AI Team
+Location: Bangalore / Hybrid
+Experience: 1–3 years
 
+About the Role
+We are an applied research team working at the intersection of computer vision, NLP, and multimodal AI. We build and evaluate large vision-language models (VLMs), run rigorous ablations, and translate research into production systems. We need someone who bridges research and engineering.
 
-About Infrabyte Consulting
-Infrabyte Consulting is a consulting and technology solutions firm focused on applying artificial intelligence, advanced analytics, and automation to solve complex business and operational challenges. We combine strategic consulting frameworks with modern intelligent systems to help organizations improve efficiency, scalability, and innovation. Our internship programs are designed to provide practical exposure to AI implementation, consulting discipline, and real-world problem-solving.
-
-
-About the Opportunity
-Infrabyte Consulting is seeking an Artificial Intelligence Intern for candidates interested in intelligent systems, AI-driven innovation, and practical business applications of emerging technologies. This internship provides structured exposure to AI workflows, experimentation, and consulting-led technical execution in a remote professional environment.
-
-
-What You’ll Do
-
-
-* Assist in preparing and structuring datasets for AI applications
-* Support experimentation with AI/ML algorithms for business or operational use cases
-* Work on feature engineering, model testing, and analytical workflows
-* Research practical AI methodologies and emerging intelligent systems
-* Evaluate model outputs and support optimization processes
-* Collaborate on AI-focused consulting projects requiring strategic problem-solving
-* Document methodologies, experiments, and implementation findings
-* Explore AI applications in automation, analytics, or operational systems
-
-
-Who Can Apply
-
-
-* Students or recent graduates in Artificial Intelligence, Computer Science, Data Science, or related fields
-* Candidates passionate about AI systems, automation, and intelligent technologies
-* Individuals with strong analytical, technical, and computational thinking abilities
-* Applicants comfortable with remote execution and structured project environments
-
+Key Responsibilities
+• Train and fine-tune Vision-Language Models (CLIP, LLaVA, Florence) on custom datasets
+• Design evaluation frameworks: BLEU, ROUGE, CIDEr, and custom task-specific metrics
+• Run systematic ablation studies on model architecture, prompting, and data quality
+• Build multimodal RAG pipelines combining image embeddings and text retrieval
+• Write clean, reproducible research code with proper experiment tracking
+• Contribute to internal research reports and collaborate with senior researchers
 
 Required Skills
+• Strong background in both Computer Vision and NLP
+• Experience fine-tuning large models; familiarity with PEFT methods
+• Proficiency in PyTorch; experience reading and implementing research papers
+• Strong understanding of evaluation metrics (ROUGE, BLEU, perplexity, etc.)
+• Solid mathematical foundations: linear algebra, probability, and optimisation
 
+Preferred / Good to Have
+• Experience with VLMs or multimodal architectures (CLIP, BLIP, LLaVA, etc.)
+• Familiarity with contrastive learning or diffusion models
+• Publications or significant open-source contributions
+• Experience with large-scale distributed training (DDP, FSDP)
 
-* Strong understanding of Python programming fundamentals
-* Basic knowledge of AI and machine learning concepts
-* Familiarity with data structures, algorithms, and analytical reasoning
-* Understanding of statistics and probability basics
-* Problem-solving mindset and technical curiosity
-* Ability to document and communicate technical outcomes effectively
+Where You Need to Tailor / Upskill
+• VLMs / multimodal architectures — your CV shows CV and NLP separately, not combined; highlight any cross-modal work or study CLIP/LLaVA before applying
+• Research paper implementation — demonstrate this via GitHub; your projects are strong but more engineering-focused than research-focused
+• Distributed training — add a note if you have any experience, even single-node multi-GPU
+• Contrastive or generative vision models — your AdaIN neural style project is adjacent; frame it as generative vision research
+• Consider adding a multimodal mini-project (image + text RAG, image captioning) to bridge the gap
 
-
-Preferred Qualifications
-
-
-* Familiarity with TensorFlow, PyTorch, scikit-learn, or similar frameworks
-* Academic or personal AI/ML projects
-* Exposure to deep learning, NLP, or automation concepts
-* Interest in consulting-led innovation and intelligent systems
-
-
-What You’ll Gain
-
-
-* Hands-on experience in AI implementation within consulting-oriented environments
-* Exposure to real-world intelligent systems and business problem-solving
-* Mentorship from experienced consulting and technical professionals
-* Opportunity to strengthen technical experimentation, research, and strategic execution skills
-* Portfolio-building through practical AI assignments
-* Internship completion certificate based on performance
-
-
-Work Environment
-
-
-* Fully remote internship
-* Structured AI and consulting project assignments
-* Performance-focused mentorship and innovation-driven learning
-
-
-Infrabyte Consulting is committed to fostering a professional, inclusive, and growth-oriented environment where future AI professionals can gain meaningful consulting and technical expertise."""
+Compensation
+• CTC: ₹12–20 LPA depending on research output and experience
+• Access to on-premise GPU cluster
+• Conference sponsorship (NeurIPS, CVPR, ACL)."""
 if __name__ == "__main__":
     inp = {"org_resume_path": "C:\\Downloads\\main.tex", "max_tool_calls_for_rewritting_resume": 5, "jd": jd}
-    asyncio.run(run_workflow(inp))
+    x=asyncio.run(run_workflow(inp))
+    print(x)

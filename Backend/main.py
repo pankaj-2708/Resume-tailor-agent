@@ -34,8 +34,8 @@ async def tailor_resume(inp:inp_data):
         res=await run_workflow(inp)
         # for changing default address of resume edit it in MCP
         if res['status']=="sucess":
-            return JSONResponse(status_code=200,content={"res":"Resume saved at C:\\Downloads\\resume.pdf ","status":"sucess"})
-        return JSONResponse(status_code=200,content=res)
+            return JSONResponse(status_code=200,content=res)
+        return JSONResponse(status_code=500,content=res)
     # this try except is not required as run_workflow handles errors
     except Exception as E:
         print(E)

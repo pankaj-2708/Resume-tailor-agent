@@ -36,9 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
 
       if (response.ok) {
-        showStatus(data.res || data.message || 'Resume tailored successfully!', 'success');
+        let message = data.message || 'Resume tailored successfully!';
+        if (data.updated_resume_score !== undefined && data.org_resume_score !== undefined) {
+          message += `\nOriginal Score: ${data.org_resume_score}, Updated Score: ${data.updated_resume_score}`;
+        }
+        showStatus(message, 'success');
       } else {
-        let errorMessage = data.error || `Error occurred: ${response.statusText}`;
+        let errorMessage = data.message || data.error || `Error occurred: ${response.statusText}`;
         if (data.last_completed_node) {
           errorMessage += `\nFailed at node: ${data.last_completed_node}`;
         }
