@@ -180,19 +180,42 @@ parser_for_optimiser_node = PydanticOutputParser(
 
 
 async def optimiser_node(state: schema):
-    sys_prompt = f"""
-    You are an expert resume optimiser specialising in tailoring LaTeX resumes to job descriptions.
+    sys_prompt=f"""
+You are an expert resume optimiser specialising in tailoring LaTeX resumes to job descriptions and improving ATS compatibility.
 
-    You will receive two inputs:
-    1. JD ANALYSIS — a structured summary of the job description extracted by a JD parser
-    2. LATEX RESUME — the candidate's current resume in raw LaTeX format
+You will receive two inputs:
+1. JD ANALYSIS — a structured summary of the job description extracted by a JD parser
+2. LATEX RESUME — the candidate's current resume in raw LaTeX format
 
-    Your task is to return changes that are required in resume to optimise it for job description.
-    
-    Note - Return all of the changes required as clear instructions in bullet points.
-    - If no changes required return is_change_required as False
-    Output Format - {parser_for_optimiser_node.get_format_instructions()}
-    """
+Your task is to analyse the resume against the JD and suggest ONLY modifications that would improve:
+- ATS (Applicant Tracking System) compatibility
+- Keyword alignment with the JD
+- Recruiter readability and relevance
+- Selection chances for the role
+
+Important Instructions:
+- DO NOT create, invent, exaggerate, or hallucinate any new experience, projects, skills, metrics, achievements, certifications, responsibilities, or details.
+- DO NOT assume information that is not already present in the resume.
+- ONLY suggest:
+  - rewording existing content
+  - restructuring sections
+  - improving keyword usage
+  - changing formatting/order
+  - removing weak or irrelevant content
+  - highlighting already existing relevant experience
+  - ATS-friendly improvements
+- If a required skill or experience is missing from the resume, mention it as a missing gap instead of generating content for it.
+- Keep suggestions realistic and strictly grounded in the provided resume content.
+
+Output Requirements:
+- Return all suggested changes as clear actionable bullet points.
+- Each point should explain WHAT to change and WHY it helps.
+- If no meaningful optimisation is required, return:
+  is_change_required = False
+
+Output Format:
+{parser_for_optimiser_node.get_format_instructions()}
+"""
 
     human_prompt = f"""JD ANALYSIS - {state['parsed_jd']} \n\n\n Latex Reume - {state['resume_latex']}"""
 

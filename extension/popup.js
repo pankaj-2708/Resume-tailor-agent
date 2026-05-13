@@ -36,30 +36,63 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
 
       if (response.ok) {
-        let message = data.message || 'Resume tailored successfully!';
-        if (data.updated_resume_score !== undefined && data.org_resume_score !== undefined) {
-          message += `\nOriginal Score: ${data.org_resume_score}, Updated Score: ${data.updated_resume_score}`;
-        }
-        showStatus(message, 'success');
+        showStatus(data, 'success');
       } else {
-        let errorMessage = data.message || data.error || `Error occurred: ${response.statusText}`;
-        if (data.last_completed_node) {
-          errorMessage += `\nFailed at node: ${data.last_completed_node}`;
-        }
-        showStatus(errorMessage, 'error');
+        showStatus(data, 'error');
       }
     } catch (error) {
       console.error('Fetch error:', error);
-      showStatus(`An error occurred while connecting to the backend: ${error.message}`, 'error');
+      showStatus({ message: `An error occurred while connecting to the backend: ${error.message}` }, 'error');
     } finally {
       tailorBtn.disabled = false;
       tailorBtn.textContent = 'Tailor Resume';
     }
   });
 
-  function showStatus(message, type) {
-    statusDiv.textContent = message;
-    statusDiv.className = `status-message ${type}`;
+  function showStatus(data, type) {
+    statusDiv.className = `status-container ${type}`;
     statusDiv.classList.remove('hidden');
+
+    if (typeof data === 'string') {
+      statusDiv.textContent = data;
+      return;
+    }
+
+    let html = '';
+
+    if (type === 'success') {
+      const message = data.message || 'Resume tailored successfully!';
+      html = `<div>${message}</div>`;
+
+      if (data.org_resume_score !== undefined && data.updated_resume_score !== undefined) {
+        const diff = data.updated_resume_score - data.org_resume_score;
+        const diffText = diff >= 0 ? `+${diff}` : `${diff}`;
+        html += `
+          <div class="score-card">
+            <div class="score-item">
+              <span class="score-label">Original</span>
+              <span class="score-value">${data.org_resume_score}</span>
+            </div>
+            <div class="score-diff">${diffText}</div>
+            <div class="score-item">
+              <span class="score-label">Updated</span>
+              <span class="score-value">${data.updated_resume_score}</span>
+            </div>
+          </div>
+        `;
+      }
+    } else if (type === 'error') {
+      const message = data.message || data.error || 'An unexpected error occurred';
+      html = `<div>${message}</div>`;
+
+      if (data.error) {
+        html += `<div class="error-detail"><strong>Details:</strong><br>${data.error}</div>`;
+      }
+      if (data.last_completed_node) {
+        html += `<div class="error-detail"><span class="node-badge">Node: ${data.last_completed_node}</span></div>`;
+      }
+    }
+
+    statusDiv.innerHTML = html;
   }
 });
