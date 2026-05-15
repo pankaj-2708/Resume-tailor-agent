@@ -2,7 +2,7 @@
 
 Tailor Resume is an AI-powered system designed to optimize LaTeX resumes for specific job descriptions, increasing the likelihood of passing through Applicant Tracking Systems (ATS) and catching the eye of recruiters. It leverages a sophisticated LangGraph workflow to analyze job descriptions, score resumes, and iteratively tailor content while maintaining the structural integrity of LaTeX documents.
 
-## 🚀 Features
+## Features
 
 - **Automated JD Analysis**: Extracts key requirements, tech stacks, and responsibilities from job descriptions.
 - **Resume Scoring**: Evaluates the match between a resume and a JD on a scale of 1-100, focusing on skills, experience, and achievements.
@@ -11,7 +11,7 @@ Tailor Resume is an AI-powered system designed to optimize LaTeX resumes for spe
 - **Iterative Optimization**: Uses a feedback loop to update the resume and re-score it until the best possible match is achieved.
 - **Browser Extension**: A convenient popup interface to trigger the tailoring process and view score improvements.
 
-## 🏗️ Architecture
+## Architecture
 
 The project is built with a modular architecture:
 
@@ -24,7 +24,7 @@ The project is built with a modular architecture:
 - **Backend (`/Backend`)**: A FastAPI server that exposes the workflow as an API.
 - **Frontend (`/extension`)**: A Chrome extension for a seamless user experience.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Orchestration**: LangGraph, LangChain
 - **LLM**: Gemma 4 (via Ollama)
@@ -33,7 +33,7 @@ The project is built with a modular architecture:
 - **Document Processing**: LaTeX (`pdflatex`)
 - **Frontend**: JavaScript, CSS, HTML (Chrome Extension)
 
-## 📦 Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 - Python 3.12+
@@ -44,7 +44,7 @@ The project is built with a modular architecture:
 ### Setup
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/pankaj-2708/Resume-tailor-agent
    cd tailor-resume
    ```
 
@@ -64,7 +64,7 @@ The project is built with a modular architecture:
 6. **Install the Extension**:
    - Load the `extension` folder as an unpacked extension in Chrome (`chrome://extensions`).
 
-## 📈 Workflow Process
+## Workflow Process
 
 1. **JD Parsing**: The system analyzes the provided job description to identify the ideal candidate profile.
 2. **Initial Scoring**: The current LaTeX resume is read and scored against the parsed JD.
@@ -73,4 +73,3 @@ The project is built with a modular architecture:
 5. **Compilation & Validation**: The updated LaTeX is compiled to PDF via the MCP server, and a final score is generated to quantify the improvement.
 
 ---
-*Developed for high-precision resume tailoring using the latest in Agentic AI workflows.*
