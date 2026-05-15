@@ -62,6 +62,7 @@ class schema(TypedDict):
     max_tool_calls_for_rewritting_resume: int
     org_resume_score:int
     resume_score:int
+    new_resume_name:str
 
 
 class jd_summary_schema(BaseModel):
@@ -186,6 +187,7 @@ You are an expert resume optimiser specialising in tailoring LaTeX resumes to jo
 You will receive two inputs:
 1. JD ANALYSIS — a structured summary of the job description extracted by a JD parser
 2. LATEX RESUME — the candidate's current resume in raw LaTeX format
+3. New resume name - new resume should be saved by this name
 
 Your task is to analyse the resume against the JD and suggest ONLY modifications that would improve:
 - ATS (Applicant Tracking System) compatibility
@@ -209,7 +211,7 @@ Important Instructions:
 
 Output Requirements:
 - Return all suggested changes as clear actionable bullet points.
-- Each point should explain WHAT to change and WHY it helps.
+- Each point should explain WHAT to change .
 - If no meaningful optimisation is required, return:
   is_change_required = False
 
@@ -217,7 +219,7 @@ Output Format:
 {parser_for_optimiser_node.get_format_instructions()}
 """
 
-    human_prompt = f"""JD ANALYSIS - {state['parsed_jd']} \n\n\n Latex Reume - {state['resume_latex']}"""
+    human_prompt = f"""JD ANALYSIS - {state['parsed_jd']} \n\n\n Latex Reume - {state['resume_latex']} \n\n New resume name - {state['new_resume_name']}"""
 
     res = await optimiser_llm.ainvoke([sys_prompt, human_prompt])
     res = await parser_for_optimiser_node.ainvoke(res.content)
@@ -323,10 +325,10 @@ async def run_workflow(input_dct):
                 last_state = data 
         
         if completed_node=='optimiser_node':
-            return {"status":"sucess",'message':'No update required'}
+            return {"status":"sucess",'message':'No update required','org_resume_score':last_state['resume_score']}
 
-        if last_state['resume_updated']==False:
-            return {"status":"failed","message":"Update failed after fix latex code max iternation time"}
+        # if last_state['resume_updated']==False:
+        #     return {"status":"failed","message":"Update failed after fix latex code max iternation time"}
         
         return {"status":"sucess","message":"updated resume is present at given directory with name resume.pdf","org_resume_score":last_state['org_resume_score'],'updated_resume_score':last_state['resume_score']}
         
@@ -375,6 +377,6 @@ Compensation
 • Access to on-premise GPU cluster
 • Conference sponsorship (NeurIPS, CVPR, ACL)."""
 if __name__ == "__main__":
-    inp = {"org_resume_path": "C:\\Downloads\\main.tex", "max_tool_calls_for_rewritting_resume": 5, "jd": jd}
+    inp = {"org_resume_path": "C:\\Downloads\\main.tex", "max_tool_calls_for_rewritting_resume": 5, "jd": jd,"new_resume_name":"new_resume"}
     x=asyncio.run(run_workflow(inp))
     print(x)

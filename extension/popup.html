@@ -19,7 +19,22 @@
       </textarea>
     </div>
 
+    <div class="field-group">
+      <label for="resumeName">New Resume Name</label>
+      <input type="text" id="resumeName" value="resume" placeholder="e.g. tailored_resume">
+    </div>
+
     <button id="tailorBtn">Tailor Resume</button>
+
+    <div id="runningJobs" class="running-jobs-container hidden">
+      <h3 class="section-title">Running Jobs</h3>
+      <ul id="jobsList"></ul>
+    </div>
+
+    <div id="completedJobs" class="completed-jobs-container hidden">
+      <h3 class="section-title">Last 10 Completed Jobs</h3>
+      <ul id="completedList"></ul>
+    </div>
 
     <div id="status" class="status-container hidden"></div>
 

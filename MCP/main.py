@@ -20,11 +20,15 @@ def latex_reader_tool(path: str):
 
 
 @mcp.tool()
-def latex_compiler_and_document_saver(latex: str):
-    """This tool compile the given latex code and save it as a pdf"""
+def latex_compiler_and_document_saver(latex: str,new_resume_name:str):
+    """This tool compile the given latex code and save it as a pdf
+        New resume name should be a string without .pdf and without any directory address
+    """
 
     try:
-        tex_path = os.path.join(resume_directory, "resume.tex")
+        if '.pdf' == new_resume_name[-4:]:
+            new_resume_name=new_resume_name[:-4]
+        tex_path = os.path.join(resume_directory, f"{new_resume_name}.tex")
         with open(tex_path, "w") as f:
             f.write(latex)
         result = subprocess.run(

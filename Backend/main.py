@@ -37,6 +37,7 @@ app.add_middleware(
 class inp_data(BaseModel):
     job_description:str
     resume_path:str
+    new_resume_name:str
     
 jobs_table="job_status"
     
@@ -50,9 +51,9 @@ async def wrapper_for_run_workflow(inp,job_id):
 async def tailor_resume(inp:inp_data,background_tasks: BackgroundTasks):
     try:
         id=str(uuid.uuid4())
-        cursor.execute(f"""insert into {jobs_table} (id,status,response) values (%s,%s,%s)""",(id,'running',''))    
-        cnx.commit()    
-        inp = {"org_resume_path": inp.resume_path, "max_tool_calls_for_rewritting_resume": 5, "jd": inp.job_description}
+        cursor.execute(f"""insert into {jobs_table} (id,status,response,new_resume_name) values (%s,%s,%s,%s)""",(id,'running','',inp.new_resume_name))
+        cnx.commit()
+        inp = {"org_resume_path": inp.resume_path, "max_tool_calls_for_rewritting_resume": 5, "jd": inp.job_description,"new_resume_name":inp.new_resume_name}
         background_tasks.add_task(wrapper_for_run_workflow,inp,id)
         return JSONResponse(content={"job_id":id,"status":"running"},status_code=200)
     except Exception as E:
@@ -65,16 +66,18 @@ async def job_status(job_id:str):
     try:
         cursor.execute(f"""Select * from {jobs_table} where id= %s """,(job_id,))
         res=cursor.fetchone()
-        # print(res)
-        if res and res[0]=='running':
-            return JSONResponse(content={"status":"running"},status_code=200)
-        else:
-            x={}
-            x['status']=res[1]
-            if res[2]!='':
-                x['response']=json.loads(res[2])
+        if not res:
+            return JSONResponse(content={"error":"Job not found"},status_code=404)
 
-            return JSONResponse(content=x,status_code=200)
+        x={}
+        x['id'] = res[0]
+        x['status']=res[1]
+        if res[2] and res[2] != '':
+            x['response']=json.loads(res[2])
+        x['new_resume_name']=res[3]
+        x['time_created']=str(res[4])
+
+        return JSONResponse(content=x,status_code=200)
     except Exception as E:
         return JSONResponse(content={"error":str(E)},status_code=500)
     
@@ -82,12 +85,31 @@ async def job_status(job_id:str):
 @app.get("/fetch_running_jobs/")
 async def fetch_all_running_jobs():
     try:
-        cursor.execute(f"""Select * from {jobs_table} where status= 'running'""")
+        cursor.execute(f"""Select id, new_resume_name from {jobs_table} where status= 'running'""")
         res=cursor.fetchall()
-        ids=[]
+        jobs=[]
         for i in res:
-            ids.append(i[0])
-        return JSONResponse(content={"running_ids":ids},status_code=200)
+            jobs.append({"id": i[0], "name": i[1]})
+        return JSONResponse(content={"running_jobs":jobs},status_code=200)
+    except Exception as E:
+        return JSONResponse(content={"error":str(E)},status_code=500)
+    
+@app.get("/fetch_completed_jobs/")
+async def fetch_completed_jobs():
+    try:
+        cursor.execute(f"""Select * from {jobs_table} where status= 'completed' order by date limit 10""")
+        res_all=cursor.fetchall()
+        lst=[]
+        for res in res_all:
+            x={}
+            x['status']=res[1]
+            if res[2]!='':
+                x['response']=json.loads(res[2])
+            x['new_resume_name']=res[3]
+            x['time_created']=str(res[4])
+            lst.append(x)
+            
+        return JSONResponse(content={"last_10_jobs":lst},status_code=200)
     except Exception as E:    
         return JSONResponse(content={"error":str(E)},status_code=500)
     
